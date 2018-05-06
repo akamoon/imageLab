@@ -24,19 +24,23 @@ volatile unsigned int errorTag;
 int Pic(int chan)
 {
 //
+  //--1把指定的图像currency_img.bmp转换成灰阶图------------------------
     image2= new unsigned char [1440*400];
     image3= new unsigned char [1440*400];
     _chdir(trainPath);
     Mat image123;
     printf("................start\n");
     image123=imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
-    unsigned char *image2;
+    unsigned char *image2;//**重复了前面的image2
     image2= new unsigned char [1440*400];
     Mat gray_image1;
     cvtColor( image123, gray_image1, CV_BGR2GRAY );
     imwrite("Gray_Image.bmp", gray_image1);
+  //--1------------------------------------------------------
+
     int k=0;
 
+//---2--把灰阶图的像素点读入数组image2-------------------
     for(int i=0;i<400;i++)
     {
         for(int j=0;j<1440;j++)
@@ -45,6 +49,7 @@ int Pic(int chan)
           k++;
         }
     }
+//---2-------------------------------------------------
 
     int temp =LinearFitting(image2,99.5,396,0);
 
@@ -61,14 +66,18 @@ int Pic(int chan)
   //  system("pause");
     if(temp5>1000)
     {
-    if(chan==0)
-    {
+      if(chan==0)
+      {
+        //---3-重新读另一张图currency_img1.bmp,然后转成灰阶------
         image123=imread("currency_img1.bmp",CV_LOAD_IMAGE_COLOR);
         unsigned char *image1;
         image1= new unsigned char [1440*400];
         cvtColor( image123, gray_image1, CV_BGR2GRAY );
         imwrite("Gray_Image1.bmp", gray_image1);
         int k=0;
+        //---3--------------------------------------
+
+        //---4-把灰阶图传入image1数组------------------
         for(int i=0;i<400;i++)
         {
             for(int j=0;j<1440;j++)
@@ -77,6 +86,7 @@ int Pic(int chan)
               k++;
             }
         }
+        //---4--------------------------------------
 
         int temp =LinearFitting(image2,99.5,396,0);
 
@@ -212,57 +222,57 @@ int Pic(int chan)
                 printf("这是老板50美元\n");
             }
             break;
-        case 7:
-        temp16 =LinearFitting(image1,99.5,396,0);
-        temp17=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
-        if(temp17>600)
-        {
-            temp4 =LinearFitting(image2,99.5,396,0);
-            temp5=ImageCrop(image2,parameters_Dollar[11],image3,0,10);
-            printf("这是新版10美元\n");
-        }
-        else
-        {
-            temp4 =LinearFitting(image2,99.5,396,0);
-            temp5=ImageCrop(image2,parameters_Dollar[2],image3,0,11);
-            printf("这是老板10美元\n");
-        }
-        break;
+            case 7:
+            temp16 =LinearFitting(image1,99.5,396,0);
+            temp17=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
+            if(temp17>600)
+            {
+              temp4 =LinearFitting(image2,99.5,396,0);
+              temp5=ImageCrop(image2,parameters_Dollar[11],image3,0,10);
+              printf("这是新版10美元\n");
+            }
+            else
+            {
+              temp4 =LinearFitting(image2,99.5,396,0);
+              temp5=ImageCrop(image2,parameters_Dollar[2],image3,0,11);
+              printf("这是老板10美元\n");
+            }
+            break;
 
-        case 8:
-        temp18 =LinearFitting(image1,99.5,396,0);
-        temp19=ImageCrop(image1,parameters_Dollar[0],image3,0,20);
-        if(temp19>600)
-        {
-            temp6 =LinearFitting(image2,99.5,396,0);
-            temp7=ImageCrop(image2,parameters_Dollar[5],image3,0,20);
-            printf("这是新版20美元\n");
+            case 8:
+            temp18 =LinearFitting(image1,99.5,396,0);
+            temp19=ImageCrop(image1,parameters_Dollar[0],image3,0,20);
+            if(temp19>600)
+            {
+              temp6 =LinearFitting(image2,99.5,396,0);
+              temp7=ImageCrop(image2,parameters_Dollar[5],image3,0,20);
+              printf("这是新版20美元\n");
+            }
+            else
+            {
+              temp6 =LinearFitting(image2,99.5,396,0);
+              temp7=ImageCrop(image2,parameters_Dollar[2],image3,0,21);
+              printf("这是老板20美元\n");
+            }
+            break;
+            case 9:
+            temp20 =LinearFitting(image1,99.5,396,0);
+            temp21=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
+            if(temp21>600)
+            {
+              temp4 =LinearFitting(image2,99.5,396,0);
+              temp5=ImageCrop(image2,parameters_Dollar[4],image3,0,100);
+              printf("这是新版100美元\n");
+            }
+            else
+            {
+              temp4 =LinearFitting(image2,99.5,396,0);
+              temp5=ImageCrop(image2,parameters_Dollar[3],image3,0,101);
+              printf("这是老板100美元\n");
+            }
+            break;
         }
-        else
-        {
-            temp6 =LinearFitting(image2,99.5,396,0);
-            temp7=ImageCrop(image2,parameters_Dollar[2],image3,0,21);
-            printf("这是老板20美元\n");
-        }
-        break;
-        case 9:
-        temp20 =LinearFitting(image1,99.5,396,0);
-        temp21=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
-        if(temp21>600)
-        {
-            temp4 =LinearFitting(image2,99.5,396,0);
-            temp5=ImageCrop(image2,parameters_Dollar[4],image3,0,100);
-            printf("这是新版100美元\n");
-        }
-        else
-        {
-            temp4 =LinearFitting(image2,99.5,396,0);
-            temp5=ImageCrop(image2,parameters_Dollar[3],image3,0,101);
-            printf("这是老板100美元\n");
-        }
-        break;
-        }
-    }
+      }
     }
 
 
