@@ -21,38 +21,109 @@ volatile unsigned int errorTag;
  unsigned short moneyHeight;
  volatile int g_angle;//纸币偏转角度
 
-int Pic(int chan)
-{
-//
-  //--1把指定的图像currency_img.bmp转换成灰阶图------------------------
-    image2= new unsigned char [1440*400];
-    image3= new unsigned char [1440*400];
-    _chdir(trainPath);
-    Mat image123;
-    printf("................start\n");
-    image123=imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
-    unsigned char *image2;//**重复了前面的image2
-    image2= new unsigned char [1440*400];
-    Mat gray_image1;
-    cvtColor( image123, gray_image1, CV_BGR2GRAY );
-    imwrite("Gray_Image.bmp", gray_image1);
-  //--1------------------------------------------------------
+
+/*重构工作
+1.灰阶的转换可以直接做成一个函数
+
+2.超长的switch需要通过别的方式重构一下
+
+*/
+
+ /*
+ 已重构：
+  1.image2,image3 变量名重新定义为image_input，image_output
+  2.image123 变量名重新定义为：image_original
+  3.gray_image1 变量名重新定义为：image_gray
+  4.函数返回值使用 funReuslt 统一存储
+  5.灰阶图转换函数
+ */
+
+ /*****************************************************************
+* 函数名:  ToGray
+* 功能描述: 
+  将原图中的图像转为灰阶，并将像素点数据输出到指定数组中
+  根据需求对灰阶图像进行保存
+* 形式参数: 
+  Mat image_orignial： 使用OpenCV容易读取的原图数据 
+  unsigned char* imagePixelStore： 存储的图像灰阶像素的数组 
+  int isSave: 是否保存图像
+  char* fileName: 保存图像的文件名
+* 返回值： 无
+*------------------------------------------------------------------
+* V1.0  2018/05/07  FX
+******************************************************************/
+ void ToGray(Mat image_orignial, unsigned char* imagePixelStore, int isSave, char* fileName)
+ {
+    Mat image_gray;//openCV图像容器，用来存储转为灰阶的图像
+    cvtColor( image_original, image_gray, CV_BGR2GRAY);
+    
+    if(isSave && fileName != NULL) imwrite(fileName, image_gray);
 
     int k=0;
-
-//---2--把灰阶图的像素点读入数组image2-------------------
     for(int i=0;i<400;i++)
     {
         for(int j=0;j<1440;j++)
         {
-          image2[k]=gray_image1.at<uchar>(i,j);
+          image_input[k]=image_gray.at<uchar>(i,j);
           k++;
         }
     }
+ }
+
+int Pic(int chan)
+{
+    _chdir(trainPath);
+
+  //--1把指定的图像currency_img.bmp转换成灰阶图------------------------
+    //**001***定义并申请图像像素的存储空间**********
+    unsigned char *image_input;//用于保存从文件里读入的图像的像素点
+    unsigned char *image_output;//用于接收函数的输出的图像的像素点
+    image_input = new unsigned char[1440 * 400];
+    image_output = new unsigned char[1440 * 400];
+    //image2= new unsigned char [1440*400];
+    //image3= new unsigned char [1440*400];
+    //**001**************************************
+    
+    //***002***定义OpenCV图像容器**********
+    //Mat image123;
+    Mat image_original;//openCV图像容器，用来接收从文件中读入的图像
+    //Mat gray_image1;
+    Mat image_gray;//openCV图像容器，用来存储转为灰阶的图像
+    //***002******************************
+
+    //Debug information
+    //printf("................start\n");
+
+    //***003***将图像转为灰阶并存储***************
+    image_original = imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
+    //image123=imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
+    //unsigned char *image2;//**重复了前面的image2
+    //image2= new unsigned char [1440*400];
+    cvtColor( image_original, image_gray, CV_BGR2GRAY);
+    //cvtColor( image123, gray_image1, CV_BGR2GRAY );
+    imwrite("Gray_Image.bmp", image_gray);
+    //imwrite("Gray_Image.bmp", gray_image1);
+    //***003**************************************
+  //--1------------------------------------------------------
+
+    
+
+//---2--把灰阶图的像素点读入数组image_input-------------------
+    int k=0;
+    for(int i=0;i<400;i++)
+    {
+        for(int j=0;j<1440;j++)
+        {
+          image_input[k]=image_gray.at<uchar>(i,j);
+          k++;
+        }
+    }
+
+    int funReuslt = 0; //用来存储函数返回的结果
 //---2-------------------------------------------------
 
-    int temp =LinearFitting(image2,99.5,396,0);
-
+    //int temp =LinearFitting(image_input,99.5,396,0);
+    funReuslt = LinearFitting(image_input,99.5,396,0);
     unsigned short parameters_Dollar[4][4]=
     {
         {1200,7500,4500,6800} ,//T1
@@ -61,7 +132,7 @@ int Pic(int chan)
         {4000,6000,3000,8700},
     };
 
-    int temp5=ImageCrop(image2,parameters_Dollar[2],image3,0,0);
+    int temp5=ImageCrop(image_input,parameters_Dollar[2],image_output,0,0);
     printf("\ntemp5=%d\n",temp5);
   //  system("pause");
     if(temp5>1000)
