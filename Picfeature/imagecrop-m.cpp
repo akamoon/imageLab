@@ -17,7 +17,7 @@
             crp_hw[2]; //截取图像的高度和宽度
 ********************************************************************/
 extern POINT1 g_line_point[8][2]; //保存上下管纸币上、下、左、右边界线上各找出的2个点
-void CropAreaVertexCal(POINT1 * crop_area_POINT1s, unsigned short * parameters, unsigned char chan_flag)
+void CropAreaVertexCal(POINT1 * crop_area_POINT1s, const unsigned short * parameters, unsigned char chan_flag)
 {
     long long k1_num, k1_den; //纸币图像上下边线斜率:分子、分母,分开是避免浮点处理
     long long b11; //纸币图像上边线纵截距(y轴)

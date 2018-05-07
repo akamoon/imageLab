@@ -31,7 +31,7 @@ POINT1 crop_image_POINT1s[4];
 unsigned short crp_hw[2];
 unsigned short rotate_image_height=300;
 unsigned short rotate_image_width=500;
-int ImageCrop(unsigned char *__restrict image, unsigned short *parameters, unsigned char *__restrict crop_image, unsigned char chan_flag, int chan)
+int ImageCrop(unsigned char *__restrict image, const unsigned short *parameters, unsigned char *__restrict crop_image, unsigned char chan_flag, int chan)
 {
 
 //    CropAreaVertexCal(crop_image_POINT1s,parameters,0); //计算截取纸币图像区域图像的顶点坐标

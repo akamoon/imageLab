@@ -31,8 +31,8 @@ volatile unsigned int errorTag;
 
  /*
  已重构：
-  1.image2,image3 变量名重新定义为image_input，image_output
-  2.image123 变量名重新定义为：image_original
+  1.image2,image3 变量名重新定义为image_input，imageOutput
+  2.image123 变量名重新定义为：imageOriginal
   3.gray_image1 变量名重新定义为：image_gray
   4.函数返回值使用 funReuslt 统一存储
   5.灰阶图转换函数
@@ -52,23 +52,111 @@ volatile unsigned int errorTag;
 *------------------------------------------------------------------
 * V1.0  2018/05/07  FX
 ******************************************************************/
- void ToGray(Mat image_orignial, unsigned char* imagePixelStore, int isSave, char* fileName)
+ void ToGray(Mat imageOriginal, unsigned char* imagePixelStore, int isSave, char* fileName)
  {
-    Mat image_gray;//openCV图像容器，用来存储转为灰阶的图像
-    cvtColor( image_original, image_gray, CV_BGR2GRAY);
+    Mat imageGray;//openCV图像容器，用来存储转为灰阶的图像
+    cvtColor( imageOriginal, imageGray, CV_BGR2GRAY);
     
-    if(isSave && fileName != NULL) imwrite(fileName, image_gray);
+    if(isSave && fileName != NULL) imwrite(fileName, imageGray);
 
     int k=0;
     for(int i=0;i<400;i++)
     {
         for(int j=0;j<1440;j++)
         {
-          image_input[k]=image_gray.at<uchar>(i,j);
+          imagePixelStore[k]=imageGray.at<uchar>(i,j);
           k++;
         }
     }
  }
+
+//用于识别纸币是大头或者小头时的参数
+static const unsigned short PARAMETER_BIG_SMALL[4][4]=
+{
+    {1200,7500,4500,6800} ,//T1
+    {1700, 2800, 7000, 9600},
+    {3200,6000,8000,8700},
+    {4000,6000,3000,8700},
+};
+
+//用于识别大头纸币面值的参数
+static  const unsigned short PARAMETER_BIG_DENOMI[12][4]=
+{//6900, 9100, 1100,1800
+    {3500, 5700, 800, 1400}, //T1判断新旧
+    {1690, 2850, 7100, 9600}, //T2
+    {1700, 2860, 7100, 9600}, //旧版10，20
+    {1900, 3100, 7050, 9550},//旧版 100
+    {2000, 3250, 7200, 9600},//新版 100
+    {6000, 7200, 1100, 3700},//新版20
+    {1100,8800,4400,7200},//头像
+    {1900, 2900, 6900, 9400}, //新版50
+    {1800, 2860, 7000, 9500}, //旧版50
+    {1700, 2850, 7000, 9500}, //新版5
+    {1700, 2800, 7000, 9500}, //旧版5
+    {6000, 7200, 1500, 3900}, //新版10
+};
+
+//用于识别小头纸币面值的参数
+static const unsigned short PARAMETER_SMALL_DENOMI[5][4]=
+{
+    {6000, 7100, 6300, 8600}, //小头1美元
+    {2550, 3750, 1610, 3900}, //小头5美元
+    {6100, 7300, 6300, 8600}, //小头10美元
+    {5800, 7000, 6100, 8400}, //小头20美元
+    {2400,8000,4000,6000}
+};
+
+/*****************************************************************
+* 函数名:  recDenomination
+* 功能描述: 截取图像的币值特征并输出是多少钱
+* 形式参数: 
+unsigned char *imageUpside ： 图像正面像素数据
+unsigned char *imageDownside ： 图像背面像素数据
+unsigned char *imageOutput ： 用于存储截取图像数据的存储空间
+int denomination ： 币值大小
+int paraIndex4New ： 对于新版钱币应该选取的参数序号
+int paraIndex4Old ： 对于老板钱币应该选取的参数序号
+int chan4New ： 对于新版钱币截取图像时使用的标识
+int chan4Old ： 对于老版钱币对应币值截取图像时使用的标识
+
+* 返回值：  无
+*------------------------------------------------------------------
+* V1.0  2018/05/07  FX
+******************************************************************/
+
+void recDenomination(
+unsigned char *imageUpside,
+unsigned char *imageDownside,
+unsigned char *imageOutput,
+int denomination,
+int paraIndex4New,
+int paraIndex4Old,
+int chan4New,
+int chan4Old)
+{
+  int funReuslt = 0;
+  funReuslt =LinearFitting(imageDownside,99.5,396,0);
+  funReuslt=ImageCrop(imageDownside,PARAMETER_BIG_DENOMI[0],imageOutput,0,1);
+  if(funReuslt>600)
+  {
+      funReuslt =LinearFitting(imageUpside,99.5,396,0);
+      funReuslt=ImageCrop(imageUpside,
+        PARAMETER_BIG_DENOMI[paraIndex4New],
+        imageOutput,
+        0,chan4New);
+      printf("这是新版%d美元\n", denomination);
+  }
+  else
+   {
+       funReuslt =LinearFitting(imageUpside,99.5,396,0);
+       funReuslt=ImageCrop(imageUpside,
+        PARAMETER_BIG_DENOMI[paraIndex4Old],
+        imageOutput,
+        0,chan4Old);
+       printf("这是老板%d美元\n", denomination);
+  }
+}
+
 
 int Pic(int chan)
 {
@@ -76,32 +164,38 @@ int Pic(int chan)
 
   //--1把指定的图像currency_img.bmp转换成灰阶图------------------------
     //**001***定义并申请图像像素的存储空间**********
-    unsigned char *image_input;//用于保存从文件里读入的图像的像素点
-    unsigned char *image_output;//用于接收函数的输出的图像的像素点
-    image_input = new unsigned char[1440 * 400];
-    image_output = new unsigned char[1440 * 400];
+    unsigned char *imageInputUpside;//用于保存从文件里读入纸币正面的图像的像素点
+    unsigned char *imageInputDonwside;//用于保存从文件里读入的纸币背面的图像的像素点
+    unsigned char *imageOutput;//用于接收imagecrop函数的输出的图像的像素点
+    imageInputUpside = new unsigned char[1440 * 400];
+    imageInputDonwside = new unsigned char[1440 * 400];
+    imageOutput = new unsigned char[1440 * 400];
     //image2= new unsigned char [1440*400];
     //image3= new unsigned char [1440*400];
     //**001**************************************
     
     //***002***定义OpenCV图像容器**********
     //Mat image123;
-    Mat image_original;//openCV图像容器，用来接收从文件中读入的图像
+    Mat imageOriginal;//openCV图像容器，用来接收从文件中读入的图像
     //Mat gray_image1;
-    Mat image_gray;//openCV图像容器，用来存储转为灰阶的图像
+    //Mat imageGray;//openCV图像容器，用来存储转为灰阶的图像
     //***002******************************
 
     //Debug information
     //printf("................start\n");
 
     //***003***将图像转为灰阶并存储***************
-    image_original = imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
+    imageOriginal = imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
     //image123=imread("currency_img.bmp",CV_LOAD_IMAGE_COLOR);
     //unsigned char *image2;//**重复了前面的image2
     //image2= new unsigned char [1440*400];
-    cvtColor( image_original, image_gray, CV_BGR2GRAY);
+
+
+/*
+    //----005----简化为ToGgray函数---------------------
+    cvtColor( imageOriginal, imageGray, CV_BGR2GRAY);
     //cvtColor( image123, gray_image1, CV_BGR2GRAY );
-    imwrite("Gray_Image.bmp", image_gray);
+    imwrite("Gray_Image.bmp", imageGray);
     //imwrite("Gray_Image.bmp", gray_image1);
     //***003**************************************
   //--1------------------------------------------------------
@@ -114,16 +208,20 @@ int Pic(int chan)
     {
         for(int j=0;j<1440;j++)
         {
-          image_input[k]=image_gray.at<uchar>(i,j);
+          imageInputUpside[k]=imageGray.at<uchar>(i,j);
           k++;
         }
     }
-
-    int funReuslt = 0; //用来存储函数返回的结果
+    //----005----简化为ToGgray函数---------------------
+*/
+    ToGray(imageOriginal, imageInputUpside, 0, 0);
 //---2-------------------------------------------------
 
+    int funReuslt = 0; //用来存储函数返回的结果
+
     //int temp =LinearFitting(image_input,99.5,396,0);
-    funReuslt = LinearFitting(image_input,99.5,396,0);
+    funReuslt = LinearFitting(imageInputUpside,99.5,396,0);
+    /*
     unsigned short parameters_Dollar[4][4]=
     {
         {1200,7500,4500,6800} ,//T1
@@ -131,14 +229,21 @@ int Pic(int chan)
         {3200,6000,8000,8700},
         {4000,6000,3000,8700},
     };
+    */
 
-    int temp5=ImageCrop(image_input,parameters_Dollar[2],image_output,0,0);
-    printf("\ntemp5=%d\n",temp5);
+    funReuslt = ImageCrop(imageInputUpside,PARAMETER_BIG_SMALL[2],imageOutput,0,0);
+    //int temp5=ImageCrop(imageInputUpside,parameters_Dollar[2],imageOutput,0,0);
+    
+    //Debug Info
+    //printf("\ntemp5=%d\n",temp5);
   //  system("pause");
-    if(temp5>1000)
+    //if(temp5>1000)
+    if(funReuslt > 1000)
     {
       if(chan==0)
       {
+        /*
+        //----005----简化为ToGgray函数---------------------        
         //---3-重新读另一张图currency_img1.bmp,然后转成灰阶------
         image123=imread("currency_img1.bmp",CV_LOAD_IMAGE_COLOR);
         unsigned char *image1;
@@ -158,9 +263,17 @@ int Pic(int chan)
             }
         }
         //---4--------------------------------------
+        //----005----简化为ToGgray函数---------------------      
+        */
+        imageOriginal = imread("currency_img1.bmp",CV_LOAD_IMAGE_COLOR);
+        ToGray(imageOriginal, imageInputDonwside, 0, 0);
 
-        int temp =LinearFitting(image2,99.5,396,0);
 
+
+
+        //int temp =LinearFitting(image2,99.5,396,0);//重复执行
+
+/*
         unsigned short parameters_Dollar[12][4]=
         {//6900, 9100, 1100,1800
             {3500, 5700, 800, 1400}, //T1判断新旧
@@ -176,11 +289,29 @@ int Pic(int chan)
             {1700, 2800, 7000, 9500}, //旧版5
             {6000, 7200, 1500, 3900}, //新版10
         };
-       int temp1=ImageCrop(image2,parameters_Dollar[6],image3,0,8);
-       int temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,temp16,temp17,temp18,temp19,temp20,temp21;
-        switch(temp1)
+*/
+
+       //int temp1=ImageCrop(image2,parameters_Dollar[6],image3,0,8);
+      funReuslt = ImageCrop(imageInputUpside,
+          PARAMETER_BIG_DENOMI[6],
+          imageOutput,
+          0,8);
+       
+       //int temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,temp16,temp17,temp18,temp19,temp20,temp21;
+        //switch(temp1)
+       switch(funReuslt)
         {
             case 0:
+            case 5:
+            recDenomination(
+              imageInputUpside,
+              imageInputDonwside,
+              imageOutput,
+              5,
+              9,10,
+              5,6);
+            break;
+            /*
                 printf("这是5美元\n");
                  temp2 =LinearFitting(image1,99.5,396,0);
                  temp3=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
@@ -197,55 +328,101 @@ int Pic(int chan)
                     printf("这是老板5美元\n");
                 }
                 break;
+            */
+
             case 1:
+            case 7:
+              recDenomination(
+              imageInputUpside,
+              imageInputDonwside,
+              imageOutput,
+              10,
+              11,2,
+              10,11);
+              break;
+            /*
              temp4 =LinearFitting(image1,99.5,396,0);
              temp5=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
-            if(temp5>600)
-            {
+              if(temp5>600)
+              {
                 temp4 =LinearFitting(image2,99.5,396,0);
                 temp5=ImageCrop(image2,parameters_Dollar[11],image3,0,10);
                 printf("这是新版10美元\n");
-            }
-            else
-            {
+              }
+              else
+              {
                 temp4 =LinearFitting(image2,99.5,396,0);
                 temp5=ImageCrop(image2,parameters_Dollar[2],image3,0,11);
                 printf("这是老板10美元\n");
-            }
-            break;
+              }
+              break;
+            */
             case 2:
-            temp6 =LinearFitting(image1,99.5,396,0);
-            temp7=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
-            if(temp7>600)
-            {
+            case 8:
+              recDenomination(
+              imageInputUpside,
+              imageInputDonwside,
+              imageOutput,
+              20,
+              5,2,
+              20,21);
+              break;
+            /*
+              temp6 =LinearFitting(image1,99.5,396,0);
+              temp7=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
+              if(temp7>600)
+              {
                 temp4 =LinearFitting(image2,99.5,396,0);
                 temp5=ImageCrop(image2,parameters_Dollar[5],image3,0,20);
                 printf("这是新版20美元\n");
-            }
-            else
-            {
+              }
+              else
+              {
                 temp6 =LinearFitting(image2,99.5,396,0);
                 temp7=ImageCrop(image2,parameters_Dollar[2],image3,0,21);
                 printf("这是老板20美元\n");
-            }
-            break;
+             }
+              break;
+            */
             case 3:
-             temp8 =LinearFitting(image1,99.5,396,0);
-             temp9=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
-            if(temp9>600)
-            {
+            case 6:
+            recDenomination(
+              imageInputUpside,
+              imageInputDonwside,
+              imageOutput,
+              50,
+              7,8,
+              50,51);
+            break;
+            /*
+              temp8 =LinearFitting(image1,99.5,396,0);
+              temp9=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
+              if(temp9>600)
+              {
                 temp4 =LinearFitting(image2,99.5,396,0);
                 temp5=ImageCrop(image2,parameters_Dollar[7],image3,0,50);
                 printf("这是新版50美元\n");
-            }
-            else
-            {
+              }
+              else
+              {
                 temp4 =LinearFitting(image2,99.5,396,0);
                 temp5=ImageCrop(image2,parameters_Dollar[8],image3,0,51);
                 printf("这是老板50美元\n");
-            }
-            break;
+              }
+              break;
+            */
             case 4:
+            case 9:
+            recDenomination(
+              imageInputUpside,
+              imageInputDonwside,
+              imageOutput,
+              100,
+              4,3,
+              100,101
+              );
+            break;
+            /*
              temp10 =LinearFitting(image1,99.5,396,0);
              temp11=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
             if(temp11>600)
@@ -261,6 +438,9 @@ int Pic(int chan)
                 printf("这是老板100美元\n");
             }
             break;
+            */
+
+            /*---------接下来重复了-----------------
             case 5:
              temp12 =LinearFitting(image1,99.5,396,0);
              temp13=ImageCrop(image1,parameters_Dollar[0],image3,0,1);
@@ -342,6 +522,7 @@ int Pic(int chan)
               printf("这是老板100美元\n");
             }
             break;
+            -------------------------------*/
         }
       }
     }
@@ -350,38 +531,38 @@ int Pic(int chan)
     else
     {
 
-            int temp =LinearFitting(image2,99.5,396,0);
-            unsigned short parameters_Dollar[5][4]=
-                   {
-                       {6000, 7100, 6300, 8600}, //小头1美元
-                       {2550, 3750, 1610, 3900}, //小头5美元
-
-                       {6100, 7300, 6300, 8600}, //小头10美元
-                       {5800, 7000, 6100, 8400}, //小头20美元
-                        {2400,8000,4000,6000},
-
-                   };
-       int temp1 =ImageCrop(image2,parameters_Dollar[4],image3,0,9);
-       switch(temp1)
+      funReuslt =LinearFitting(imageInputUpside,99.5,396,0);
+      /*
+      unsigned short parameters_Dollar[5][4]=
+      {
+        {6000, 7100, 6300, 8600}, //小头1美元
+        {2550, 3750, 1610, 3900}, //小头5美元
+        {6100, 7300, 6300, 8600}, //小头10美元
+        {5800, 7000, 6100, 8400}, //小头20美元
+        {2400,8000,4000,6000}
+      };
+      */
+       funReuslt =ImageCrop(imageInputUpside,PARAMETER_SMALL_DENOMI[4],imageOutput,0,9);
+       switch(funReuslt)
        {
            case 0:
+               funReuslt =  LinearFitting(imageInputUpside,99.5,396,0);
+               funReuslt =ImageCrop(imageInputUpside,PARAMETER_SMALL_DENOMI[2],imageOutput,0,2);
                printf("这是小头1块\n");
-               temp =  LinearFitting(image2,99.5,396,0);
-               temp1 =ImageCrop(image2,parameters_Dollar[2],image3,0,2);
                break;
            case 1:
-               temp =  LinearFitting(image2,99.5,396,0);
-               temp1 =ImageCrop(image2,parameters_Dollar[2],image3,0,2);
+               funReuslt =  LinearFitting(imageInputUpside,99.5,396,0);
+               funReuslt =ImageCrop(imageInputUpside,PARAMETER_SMALL_DENOMI[2],imageOutput,0,2);
                printf("这是小头5块\n");
                break;
            case 2:
-           temp =  LinearFitting(image2,99.5,396,0);
-           temp1 =ImageCrop(image2,parameters_Dollar[2],image3,0,2);
+              funReuslt =  LinearFitting(imageInputUpside,99.5,396,0);
+              funReuslt =ImageCrop(imageInputUpside,PARAMETER_SMALL_DENOMI[2],imageOutput,0,2);
                printf("这是小头10块\n");
                break;
            case 3:
-               temp =  LinearFitting(image2,99.5,396,0);
-               temp1 =ImageCrop(image2,parameters_Dollar[1],image3,0,22);
+               funReuslt =  LinearFitting(imageInputUpside,99.5,396,0);
+               funReuslt =ImageCrop(imageInputUpside,PARAMETER_SMALL_DENOMI[1],imageOutput,0,22);
                printf("这是小头20块\n");
                break;
        }
