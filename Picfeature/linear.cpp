@@ -35,13 +35,28 @@ float downLine[8] = {
                        0, 0  // k4, b4
                     };	// 下管图像四条边界线的斜率和截距
 
+/*
+2018.05.24:
+    重构日记：
+    函数的目的就是把一个定义在pic.cpp里的变量：g_line_POINT1赋值
+    这个变量存储着图像的顶点。
+
+    注意以下变量都引用自pic.cpp 是全局变量：
+    
+    extern unsigned short upActualSize[2];
+    extern unsigned short downActualSize[2];
+    extern int k_up1;
+    extern unsigned short moneyLength;
+    extern unsigned short moneyHeight;
+    extern volatile int g_angle;//纸币偏转角度
+*/
 int LinearFitting(unsigned char *__restrict image,unsigned char thresh_value, unsigned int im_row, unsigned char chan_flag)
 {
 
     unsigned char i = 0;
 
-     unsigned short moneyLength;
-     unsigned short moneyHeight;
+    unsigned short moneyLength;
+    unsigned short moneyHeight;
     unsigned char  chan;//存放由于上下管不同，保存纸币8个点的起始地址
     int angle; //上下通道的纸币旋转角度反向（简化处理）
     unsigned short coordinate[8] = {0};
